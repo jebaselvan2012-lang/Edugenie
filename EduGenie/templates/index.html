@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduGenie</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>EduGenie</h1>
+        <p>Gemini-powered learning assistant</p>
+    </header>
+
+    <section class="card">
+        <label for="task">Choose a task</label>
+        <select id="task">
+            <option value="qa">Ask a Question</option>
+            <option value="explain">Explain a Topic</option>
+            <option value="quiz">Generate Quiz</option>
+            <option value="summarize">Summarize</option>
+            <option value="learn">Learning Path</option>
+        </select>
+
+        <label for="inputText">Enter your question, topic, or text</label>
+        <textarea id="inputText" rows="10"
+            placeholder="Example: Explain photosynthesis for a beginner."></textarea>
+
+        <button id="submitBtn" onclick="runTask()">Run EduGenie</button>
+        <p id="status"></p>
+    </section>
+
+    <section class="card result-card">
+        <h2>Result</h2>
+        <div id="result">Your answer will appear here.</div>
+    </section>
+</div>
+
+<script>
+async function runTask() {
+    const task = document.getElementById("task").value;
+    const text = document.getElementById("inputText").value.trim();
+    const result = document.getElementById("result");
+    const status = document.getElementById("status");
+    const button = document.getElementById("submitBtn");
+
+    if (!text) {
+        result.textContent = "Please enter something first.";
+        return;
+    }
+
+    const endpoints = {
+        qa: "/qa",
+        explain: "/explain",
+        quiz: "/quiz",
+        summarize: "/summarize",
+        learn: "/learn/recommendations"
+    };
+
+    const body = task === "qa"
+        ? {question: text}
+        : {text: text};
+
+    button.disabled = true;
+    status.textContent = "Gemini is thinking...";
+    result.textContent = "";
+
+    try {
+        const response = await fetch(endpoints[task], {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.detail || "Request failed");
+        }
+
+        renderResult(data.result);
+    } catch (error) {
+        result.textContent = "Error: " + error.message;
+    } finally {
+        button.disabled = false;
+        status.textContent = "";
+    }
+}
+
+function renderResult(data) {
+    const result = document.getElementById("result");
+
+    if (Array.isArray(data)) {
+        result.innerHTML = data.map((item, index) => `
+            <div class="quiz">
+                <h3>Question ${index + 1}</h3>
+                <p>${escapeHtml(item.question)}</p>
+                <ol type="A">
+                    ${item.options.map(option => `<li>${escapeHtml(option)}</li>`).join("")}
+                </ol>
+                <strong>Correct answer: ${escapeHtml(item.answer)}</strong>
+            </div>
+        `).join("");
+        return;
+    }
+
+    if (typeof data === "object" && data !== null) {
+        result.textContent = JSON.stringify(data, null, 2);
+        return;
+    }
+
+    result.innerHTML = escapeHtml(String(data)).replace(/\n/g, "<br>");
+}
+
+function escapeHtml(value) {
+    return value
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+</script>
+</body>
+</html>
